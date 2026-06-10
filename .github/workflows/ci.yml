@@ -13,7 +13,12 @@ jobs:
         run: cmake -S . -B build
       - name: Build
         run: cmake --build build
-      - name: Run starter executable
-        run: ./build/$(basename "$PWD" | tr '-' '_')
+      - name: Run data logger executable
+        run: ./build/multi_sensor_i2c_spi_data_logger --nominal
+      - name: Run expected scenarios
+        run: |
+          ! ./build/multi_sensor_i2c_spi_data_logger --bus-fault
+          ./build/multi_sensor_i2c_spi_data_logger --out-of-range
+          ! ./build/multi_sensor_i2c_spi_data_logger --sqlite-fail
       - name: CTest
         run: ctest --test-dir build --output-on-failure

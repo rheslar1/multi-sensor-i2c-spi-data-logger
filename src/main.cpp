@@ -1,63 +1,53 @@
-#include <array>
+#include "data_logger/DataLogger.hpp"
+
 #include <iostream>
-#include <string_view>
+#include <stdexcept>
+#include <string>
 
-class IReadinessRule {
- public:
-  virtual ~IReadinessRule() = default;
-  virtual bool passes(std::string_view evidenceTarget) const = 0;
-  virtual std::string_view name() const = 0;
-};
+namespace {
 
-class RequiredEvidenceRule final : public IReadinessRule {
- public:
-  bool passes(std::string_view evidenceTarget) const override {
-    return !evidenceTarget.empty();
+void usage(const char* programName) {
+  std::cout << "Usage: " << programName << " [--nominal|--bus-fault|--out-of-range|--sqlite-fail|--help]\n";
+}
+
+std::string scenarioFromOption(const std::string& option) {
+  if (option == "--nominal") {
+    return "nominal";
+  }
+  if (option == "--bus-fault") {
+    return "bus-fault";
+  }
+  if (option == "--out-of-range") {
+    return "out-of-range";
+  }
+  if (option == "--sqlite-fail") {
+    return "sqlite-fail";
+  }
+  return {};
+}
+
+}  // namespace
+
+int main(int argc, char** argv) {
+  const std::string option = argc > 1 ? argv[1] : "--nominal";
+  if (option == "--help") {
+    usage(argv[0]);
+    return 0;
   }
 
-  std::string_view name() const override {
-    return "RequiredEvidenceRule";
-  }
-};
-
-struct ProjectProfile {
-  std::string_view title;
-  std::string_view summary;
-  std::string_view evidenceTarget;
-  std::array<std::string_view, 9> tags;
-};
-
-constexpr ProjectProfile profile{
-  "Multi-Sensor Data Logger over I2C/SPI",
-  "Multi-threaded C/C++ Linux data logger that reads temperature, pressure, and humidity sensors through /dev/i2c-* or /dev/spidev* and stores records in SQLite.",
-  "Linux file-based peripheral access, concurrent sensor reads, local persistence, and repeatable data-capture evidence.",
-  {
-    "C++17",
-    "C++ Design Patterns",
-    "SOLID",
-    "I2C",
-    "SPI",
-    "POSIX threads",
-    "SQLite",
-    "C/C++",
-    "Sensor logging"
-  }
-};
-
-int main() {
-  const RequiredEvidenceRule readinessRule;
-
-  std::cout << profile.title << '\n';
-  std::cout << "Summary: " << profile.summary << '\n';
-  std::cout << "Evidence target: " << profile.evidenceTarget << '\n';
-  std::cout << "Readiness rule: " << readinessRule.name() << '\n';
-  std::cout << "SOLID marker: C++17 strategy interface with replaceable readiness rule" << '\n';
-  std::cout << "Stack:";
-
-  for (std::size_t index = 0; index < profile.tags.size(); ++index) {
-    std::cout << ' ' << profile.tags[index] << (index + 1U == profile.tags.size() ? "" : ",");
+  const std::string scenario = scenarioFromOption(option);
+  if (scenario.empty()) {
+    usage(argv[0]);
+    return 1;
   }
 
-  std::cout << '\n';
-  return readinessRule.passes(profile.evidenceTarget) ? 0 : 1;
+  try {
+    const auto record = data_logger::runScenario(scenario);
+    data_logger::TextLogReporter reporter(std::cout);
+    reporter.publish(record);
+    return record.accepted ? 0 : 2;
+  } catch (const std::exception& exception) {
+    std::cerr << "data logger error: " << exception.what() << '\n';
+    return 1;
+  }
 }
